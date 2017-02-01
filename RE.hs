@@ -19,7 +19,10 @@ test_eps :: RExp
 test_eps = Eps
 
 test_asbs :: RExp
-test_asbs = Star (Ch (=='a')) :%% Star (Ch (=='b'))
+test_asbs =  Star (Ch (=='a'))  :%%   Star (Ch (=='b'))
+
+test_as_or_bs :: RExp
+test_as_or_bs =  Star (Ch (=='a'))  :|   Star (Ch (=='b'))
 
 test_as :: RExp
 test_as = Eps :| Ch (=='a') :%% test_as
@@ -30,6 +33,8 @@ test_bs = Eps :| Ch (=='b') :%% test_bs
 test_asbs' :: RExp
 test_asbs' = test_as :%% test_bs
 
+test_as_or_bs' :: RExp
+test_as_or_bs' = test_as :| test_bs
 
 
 -- -----------------------------------------------------------------------------
@@ -55,12 +60,19 @@ data RExp
 pretty :: RExp -> String
 pretty re = case re of
   Eps     -> "()"
-  Ch f    -> "[" ++ filter f alphabet ++ "]"
+  Ch f    -> pretty_set f
   l :%% r -> pretty l ++ pretty r
   l :| r  -> pretty l ++ "|" ++ pretty r
   Star r  -> pretty r ++ "*"
   Plus r  -> pretty r ++ "+"
   Ques r  -> pretty r ++ "?"
+
+pretty_set :: (Char->Bool) -> String
+pretty_set f = case length chs of
+    1 -> chs
+    _ -> "[" ++ chs ++ "]"
+  where
+    chs = filter f alphabet
 
 alphabet :: [Char]
 alphabet = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
@@ -76,7 +88,7 @@ alphabet = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- This function illustrates `ARexp'. It returns true if the string in its
 -- argument is matched by the regular expression.
 
-recognise:: RExp -> String -> Bool
+recognise :: RExp -> String -> Bool
 recognise re inp = any (==len) (ap_ar (arexp re) inp)
         where
         len = length inp
@@ -95,42 +107,71 @@ arexp:: RExp -> ARexp
 arexp Eps          = eps_ar
 arexp (Ch p)       = ch_ar p
 arexp (re :%% re') = arexp re `seq_ar` arexp re'
-arexp (re :| re')  = arexp re `bar_ar` arexp re'
+arexp (re :|  re') = arexp re `bar_ar` arexp re'
 arexp (Star re)    = star_ar (arexp re)
 arexp (Plus re)    = plus_ar (arexp re)
 arexp (Ques re)    = ques_ar (arexp re)
 
 
-star_ar:: ARexp -> ARexp
+star_ar :: ARexp -> ARexp
 star_ar sc =  eps_ar `bar_ar` plus_ar sc
 
-plus_ar:: ARexp -> ARexp
+plus_ar :: ARexp -> ARexp
 plus_ar sc = sc `seq_ar` star_ar sc
 
-ques_ar:: ARexp -> ARexp
+ques_ar :: ARexp -> ARexp
 ques_ar sc = eps_ar `bar_ar` sc
 
 
 type ARexp = String -> [Int]
 
-ap_ar:: ARexp -> String -> [Int]
+ap_ar :: ARexp -> String -> [Int]
 ap_ar sc = sc
 
-eps_ar:: ARexp
-eps_ar inp = [0]
+eps_ar :: ARexp
+eps_ar _ = [0]
 
-ch_ar:: (Char->Bool) -> ARexp
-ch_ar p "" = []
-ch_ar p (c:rst) = if p c then [1] else []
+ch_ar :: (Char->Bool) -> ARexp
+ch_ar _ ""    = []
+ch_ar p (c:_) = if p c then [1] else []
 
-seq_ar:: ARexp -> ARexp -> ARexp
-seq_ar sc sc' inp = [n+m| n<-sc inp, m<-sc' (drop n inp)]
+seq_ar :: ARexp -> ARexp -> ARexp
+seq_ar sc sc' = \inp -> [ n+m | n<-sc inp, m<-sc' (drop n inp) ]
 
-bar_ar:: ARexp -> ARexp -> ARexp
-bar_ar sc sc' inp = sc inp ++ sc' inp
+bar_ar :: ARexp -> ARexp -> ARexp
+bar_ar sc sc' = \inp -> sc inp ++ sc' inp
 
 
 -- -----------------------------------------------------------------------------
 -- Code generation targets
 
+
+-- a fair merge
+(%++) :: [a] -> [a] -> [a]
+[]     %++ []     = []
+(x:xs) %++ []     = x : xs
+[]     %++ (y:ys) = y : ys
+(x:xs) %++ (y:ys) = x : y : xs %++ ys
+
+
 data Target = GhcTarget | HaskellTarget
+
+data List a
+  = Cons a (List a)
+  | Nil
+
+primes :: [Integer]
+primes = sieve [2..]
+  where
+    sieve []     = error "primes"
+    sieve (p:xs) = p : sieve [ x | x<-xs, x `mod` p /= 0 ]
+
+qsort :: Ord a => [a] -> [a]
+qsort []    = []
+qsort (p:t) = qsort [ x | x<-t, x<p ] ++ [p] ++ qsort [ x | x<-t, x>=p ]
+
+{-
+data [a]
+  = a : [a]
+  | []
+-}
