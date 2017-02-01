@@ -11,6 +11,7 @@
 
 module AbsSyn where
 
+import Data.Char
 
 infixl 4 :|
 infixl 5 :%%
@@ -67,6 +68,30 @@ pretty re = case re of
   Plus r  -> pretty r ++ "+"
   Ques r  -> pretty r ++ "?"
 
+string :: String -> RExp
+string l = foldr (:%%) Eps (map (\c->Ch (c==)) l)
+
+c :: RExp
+c = Ch (== 'c')
+
+h :: RExp
+h = Ch (== 'h')
+
+r :: RExp
+r = Ch (== 'r')
+
+i :: RExp
+i = Ch (== 'i')
+
+s :: RExp
+s = Ch (== 's')
+
+chris :: RExp
+chris = c :%% (h :%% (r :%% (i :%% (s :%% Eps))))
+
+tom :: RExp
+tom = string "tom"
+
 pretty_set :: (Char->Bool) -> String
 pretty_set f = case length chs of
     1 -> chs
@@ -88,11 +113,16 @@ alphabet = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- This function illustrates `ARexp'. It returns true if the string in its
 -- argument is matched by the regular expression.
 
-recognise :: RExp -> String -> Bool
-recognise re inp = any (==len) (ap_ar (arexp re) inp)
-        where
-        len = length inp
+type ARexp = String -> [Int]
 
+recognise :: RExp -> String -> Bool
+recognise re inp = any (==length inp) $ arexp re inp
+
+recognise' :: RExp -> String -> Bool
+recognise' re inp = any (==length inp) $ arexp re inp
+
+any' :: (a->Bool) -> [a] -> Bool
+any' f l = or $ map (\x->f x) l
 
 -- `ARexp' provides an regular expressions in abstract format.  Here regular
 -- expressions are represented by a function that takes the string to be
@@ -123,10 +153,8 @@ ques_ar :: ARexp -> ARexp
 ques_ar sc = eps_ar `bar_ar` sc
 
 
-type ARexp = String -> [Int]
-
-ap_ar :: ARexp -> String -> [Int]
-ap_ar sc = sc
+--ap_ar :: ARexp -> String -> [Int]
+--ap_ar sc = sc
 
 eps_ar :: ARexp
 eps_ar _ = [0]
